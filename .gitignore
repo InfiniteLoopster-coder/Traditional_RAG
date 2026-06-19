@@ -26,3 +26,10 @@ Thumbs.db
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Data files
+data/chroma_db/
+data/raw_papers/
+airflow.db
+airflow-webserver.pid
+logs/
