@@ -2,46 +2,68 @@ from uuid import NAMESPACE_URL, uuid5
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import OpenAIEmbeddings
 
-from src.config import CHROMA_COLLECTION, CHROMA_DIR, EMBEDDING_MODEL, OPENAI_API_KEY
+from src.config import (
+    CHROMA_COLLECTION,
+    CHROMA_DIR,
+    EMBEDDING_MODEL,
+    EMBEDDING_PROVIDER,
+    OPENAI_API_KEY,
+)
 
 
-def get_embedding_model() -> OpenAIEmbeddings:
+def get_embedding_model():
     """
-    Initialize OpenAI embedding model.
+    Initialize embedding model based on EMBEDDING_PROVIDER.
+
+    Supported providers:
+    - local: HuggingFace sentence-transformers model
+    - openai: OpenAI embedding model
     """
 
-    if not OPENAI_API_KEY:
-        raise ValueError(
-            "OPENAI_API_KEY is missing. Add it to your .env file or environment variables."
+    if EMBEDDING_PROVIDER == "local":
+        return HuggingFaceEmbeddings(
+            model_name=EMBEDDING_MODEL,
+            model_kwargs={"device": "cpu"},
+            encode_kwargs={"normalize_embeddings": True},
         )
 
-    return OpenAIEmbeddings(
-        model=EMBEDDING_MODEL,
-        api_key=OPENAI_API_KEY,
+    if EMBEDDING_PROVIDER == "openai":
+        if not OPENAI_API_KEY:
+            raise ValueError(
+                "OPENAI_API_KEY is missing. Add it to .env or use EMBEDDING_PROVIDER=local."
+            )
+
+        return OpenAIEmbeddings(
+            model=EMBEDDING_MODEL,
+            api_key=OPENAI_API_KEY,
+        )
+
+    raise ValueError(
+        f"Unsupported EMBEDDING_PROVIDER='{EMBEDDING_PROVIDER}'. "
+        "Use 'local' or 'openai'."
     )
 
 
 def get_vector_store() -> Chroma:
     """
-    Initialize Chroma vector store with persistence.
+    Initialize Chroma vector store with the selected embedding model.
     """
 
     embedding_model = get_embedding_model()
 
-    vector_store = Chroma(
+    return Chroma(
         collection_name=CHROMA_COLLECTION,
         embedding_function=embedding_model,
         persist_directory=CHROMA_DIR,
     )
 
-    return vector_store
-
 
 def create_chunk_id(document: Document) -> str:
     """
-    Create deterministic chunk ID to avoid duplicate storage across daily runs.
+    Create deterministic chunk ID to reduce duplicate storage across daily runs.
     """
 
     arxiv_id = document.metadata.get("arxiv_id", "")
